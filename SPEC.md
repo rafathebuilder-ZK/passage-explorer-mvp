@@ -393,6 +393,11 @@ class DocumentProcessor:
 - Extract text with page boundaries using `pdfplumber`
 - Extract metadata (title, author) from PDF metadata
 - Use page numbers for location reference
+- **Timeout Protection**: PDF files that take more than 5 minutes to index are automatically abandoned
+  - Timeout is checked before processing each page
+  - If timeout is exceeded, the file is marked as "failed" with a timeout error message
+  - App continues to the next file without blocking
+  - Prevents very large or problematic PDFs from blocking the indexing process
 
 **HTML Handler:**
 
@@ -702,6 +707,10 @@ openai_api_key: null               # Only needed if embedding_model is "openai"
 - Continue processing other documents
 - Handle encoding errors gracefully (try UTF-8, fallback to latin-1)
 - Skip binary files that aren't PDFs
+- **PDF Timeout Handling**: PDF files that exceed 5-minute indexing timeout are automatically abandoned
+  - Timeout error is logged with elapsed time and page number
+  - File is marked as "failed" in indexing status with timeout message
+  - Processing continues to next file without blocking
 
 ### 6.2 Missing Metadata
 
@@ -736,6 +745,19 @@ openai_api_key: null               # Only needed if embedding_model is "openai"
 
 - Index on `session_date` and `passage_id` for fast queries
 - Use connection pooling for concurrent access (future)
+
+### 7.4 PDF Indexing Timeout
+
+- **5-Minute Timeout**: PDF files that take longer than 5 minutes to index are automatically abandoned
+- **Rationale**: Prevents very large, corrupted, or problematic PDFs from blocking the indexing process
+- **Implementation**: 
+  - Timeout is checked before processing each page (responsive cancellation)
+  - Elapsed time is tracked from the start of PDF processing
+  - If timeout is exceeded, a `TimeoutError` is raised with details (elapsed time, page number)
+  - File is marked as "failed" in the indexing status table with a clear timeout message
+  - App continues to the next file immediately
+- **User Experience**: Large PDFs that would otherwise block indexing for extended periods are skipped, allowing the app to continue processing other files
+- **Future Enhancement**: Could be made configurable via `config.yaml` (e.g., `pdf_indexing_timeout_seconds: 300`)
 
 ## 9. Future Enhancements (Post-MVP)
 
@@ -968,6 +990,7 @@ The MVP will be built in progressive stages, allowing testing and validation at 
 - PDFs work with other formats
 - Handles PDF parsing errors gracefully
 - Performance acceptable (<15s for 5 PDFs)
+- **5-minute timeout works correctly**: PDFs that exceed timeout are abandoned and marked as failed
 
 **Testing Steps**:
 1. Test PDF parsing: Verify text extraction from Library-Sample/pdf/
@@ -976,6 +999,7 @@ The MVP will be built in progressive stages, allowing testing and validation at 
 4. Test mixed formats: PDFs + other formats together
 5. Test error handling: Corrupted PDF, encrypted PDF
 6. Performance test: Time to process 5 PDFs
+7. **Test timeout**: Verify that PDFs exceeding 5 minutes are abandoned (use a very large PDF or simulate timeout)
 
 **Dependencies Added**: `pypdf>=3.0.0`, `pdfplumber>=0.10.0`
 
@@ -1468,6 +1492,17 @@ The spec now includes all essential terminal app best practices for an MVP:
 - Test with sample PDFs early (Stage 4)
 - Log all parsing failures for debugging
 - Provide user feedback: "Skipped X files due to parsing errors"
+- **5-minute timeout**: Automatically abandon PDFs that take too long to index, preventing blocking
+
+#### Risk: Very Large PDFs Blocking Indexing
+**Impact**: Medium - Very large PDFs may take excessive time to process, blocking indexing
+**Probability**: Medium
+**Mitigation**:
+- **Implemented**: 5-minute timeout for PDF indexing
+- Timeout checked between pages for responsive cancellation
+- Failed PDFs are marked with timeout error message
+- App continues to next file without blocking
+- Large PDFs can be manually converted to text files if needed
 
 #### Risk: Similarity Search Performance Degradation
 **Impact**: Medium - Linear search becomes slow with >10k passages

@@ -2,6 +2,7 @@
 from pathlib import Path
 from typing import Dict, List, Optional
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -226,14 +227,19 @@ class MarkdownHandler:
 class PDFHandler:
     """Handler for PDF files (page-aware text extraction)."""
     
-    def extract(self, file_path: Path) -> Dict:
+    def extract(self, file_path: Path, timeout_seconds: Optional[float] = None) -> Dict:
         """Extract text and metadata from a PDF file.
         
         Args:
             file_path: Path to PDF file.
+            timeout_seconds: Maximum time in seconds to spend processing the PDF.
+                           If None, no timeout is applied.
             
         Returns:
             Dictionary with 'text', 'metadata', 'paragraphs', and 'paragraph_page_numbers' keys.
+            
+        Raises:
+            TimeoutError: If processing exceeds timeout_seconds.
         """
         try:
             import pdfplumber
@@ -244,6 +250,8 @@ class PDFHandler:
         paragraphs: List[str] = []
         paragraph_page_numbers: List[int] = []
         full_text_parts: List[str] = []
+        
+        start_time = time.time()
 
         with pdfplumber.open(str(file_path)) as pdf:
             pdf_metadata = pdf.metadata or {}
@@ -251,6 +259,19 @@ class PDFHandler:
             author = pdf_metadata.get("Author")
 
             for page_index, page in enumerate(pdf.pages, start=1):
+                # Check timeout before processing each page
+                if timeout_seconds is not None:
+                    elapsed_time = time.time() - start_time
+                    if elapsed_time > timeout_seconds:
+                        logger.warning(
+                            f"PDF indexing timeout after {elapsed_time:.1f}s (> {timeout_seconds}s) "
+                            f"for {file_path.name} at page {page_index}"
+                        )
+                        raise TimeoutError(
+                            f"PDF indexing exceeded {timeout_seconds}s timeout "
+                            f"(processed {page_index - 1} pages before timeout)"
+                        )
+                
                 try:
                     page_text = page.extract_text() or ""
                 except Exception as e:
@@ -301,11 +322,13 @@ class DocumentProcessor:
         }
         # PDF handler added in Stage 4
     
-    def process(self, file_path: Path) -> Optional[Dict]:
+    def process(self, file_path: Path, timeout_seconds: Optional[float] = None) -> Optional[Dict]:
         """Process a document file.
         
         Args:
             file_path: Path to document file.
+            timeout_seconds: Maximum time in seconds for PDF processing (only applies to PDFs).
+                           If None, no timeout is applied.
             
         Returns:
             Dictionary with extracted text and metadata, or None if unsupported format.
@@ -318,7 +341,14 @@ class DocumentProcessor:
             return None
         
         try:
-            return handler.extract(file_path)
+            # Only apply timeout to PDF files
+            if ext == '.pdf' and timeout_seconds is not None:
+                return handler.extract(file_path, timeout_seconds=timeout_seconds)
+            else:
+                return handler.extract(file_path)
+        except TimeoutError:
+            # Re-raise timeout errors so they can be handled specifically
+            raise
         except Exception as e:
             logger.error(f"Error processing {file_path}: {e}")
             return None

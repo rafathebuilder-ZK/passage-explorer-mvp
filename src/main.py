@@ -97,8 +97,19 @@ class PassageExplorer:
                 # Mark as indexing
                 self.store.set_indexing_status(abs_path, 'indexing')
                 
-                # Process file
-                doc_data = self.processor.process(file_path)
+                # Process file - apply 5-minute timeout for PDF files
+                is_pdf = file_path.suffix.lower() == '.pdf'
+                timeout_seconds = 300.0 if is_pdf else None  # 5 minutes = 300 seconds
+                
+                try:
+                    doc_data = self.processor.process(file_path, timeout_seconds=timeout_seconds)
+                except TimeoutError as e:
+                    # PDF indexing exceeded timeout - mark as failed and continue
+                    error_msg = f"PDF indexing timeout after 5 minutes: {e}"
+                    logger.warning(error_msg)
+                    self.store.set_indexing_status(abs_path, 'failed', error_msg)
+                    continue
+                
                 if not doc_data:
                     self.store.set_indexing_status(abs_path, 'failed', 'Unsupported format or processing error')
                     continue
