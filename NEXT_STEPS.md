@@ -68,7 +68,7 @@ git status
 ## Step 5: Create Initial Commit
 
 ```bash
-git commit -m "Initial commit: Passage Explorer MVP
+git commit -m "Initial commit: Passage Explorer MVP (Phase 1 & 2)
 
 - Terminal-based passage discovery application
 - Multi-format support (TXT, HTML, MD, PDF)
@@ -76,6 +76,9 @@ git commit -m "Initial commit: Passage Explorer MVP
 - Semantic similarity search
 - Beautiful terminal UI with Rich library
 - Progressive background indexing
+- Fast startup with deferred indexing (Phase 2)
+- Cooperative cancellation (Phase 2)
+- Enhanced error handling (Phase 2)
 - MIT License"
 ```
 

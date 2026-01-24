@@ -16,6 +16,10 @@ session_history_days: 30           # Days to exclude from passage selection
 initial_indexing_batch_size: 8    # Files to index on first run
 progressive_indexing_batch_size: 4 # Files per progressive batch
 
+# Fast Startup Settings (Phase 2)
+fast_startup: true                 # Skip blocking indexing if passages exist
+min_first_run_indexing: 2          # Max files to index on first run before showing passage
+
 # Advanced Settings (Stage 2+)
 embedding_model: "local"           # "local" or "openai"
 openai_api_key: null               # Only needed if embedding_model is "openai"

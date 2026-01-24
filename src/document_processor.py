@@ -227,13 +227,15 @@ class MarkdownHandler:
 class PDFHandler:
     """Handler for PDF files (page-aware text extraction)."""
     
-    def extract(self, file_path: Path, timeout_seconds: Optional[float] = None) -> Dict:
+    def extract(self, file_path: Path, timeout_seconds: Optional[float] = None, cancellation_event=None) -> Dict:
         """Extract text and metadata from a PDF file.
         
         Args:
             file_path: Path to PDF file.
             timeout_seconds: Maximum time in seconds to spend processing the PDF.
                            If None, no timeout is applied.
+            cancellation_event: Optional threading.Event to check for cancellation.
+                               If set, processing will stop early.
             
         Returns:
             Dictionary with 'text', 'metadata', 'paragraphs', and 'paragraph_page_numbers' keys.
@@ -259,6 +261,12 @@ class PDFHandler:
             author = pdf_metadata.get("Author")
 
             for page_index, page in enumerate(pdf.pages, start=1):
+                # Check for cancellation before processing each page
+                if cancellation_event is not None and cancellation_event.is_set():
+                    logger.info(f"PDF indexing cancelled for {file_path.name} at page {page_index}")
+                    # Return partial results - mark file as pending so it can be re-indexed
+                    break
+                
                 # Check timeout before processing each page
                 if timeout_seconds is not None:
                     elapsed_time = time.time() - start_time
@@ -322,13 +330,14 @@ class DocumentProcessor:
         }
         # PDF handler added in Stage 4
     
-    def process(self, file_path: Path, timeout_seconds: Optional[float] = None) -> Optional[Dict]:
+    def process(self, file_path: Path, timeout_seconds: Optional[float] = None, cancellation_event=None) -> Optional[Dict]:
         """Process a document file.
         
         Args:
             file_path: Path to document file.
             timeout_seconds: Maximum time in seconds for PDF processing (only applies to PDFs).
                            If None, no timeout is applied.
+            cancellation_event: Optional threading.Event to check for cancellation (only applies to PDFs).
             
         Returns:
             Dictionary with extracted text and metadata, or None if unsupported format.
@@ -341,9 +350,12 @@ class DocumentProcessor:
             return None
         
         try:
-            # Only apply timeout to PDF files
-            if ext == '.pdf' and timeout_seconds is not None:
-                return handler.extract(file_path, timeout_seconds=timeout_seconds)
+            # Only apply timeout and cancellation to PDF files
+            if ext == '.pdf':
+                if timeout_seconds is not None or cancellation_event is not None:
+                    return handler.extract(file_path, timeout_seconds=timeout_seconds, cancellation_event=cancellation_event)
+                else:
+                    return handler.extract(file_path)
             else:
                 return handler.extract(file_path)
         except TimeoutError:

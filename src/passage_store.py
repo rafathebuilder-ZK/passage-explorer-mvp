@@ -1,12 +1,15 @@
 """Database operations for passages, sessions, and indexing status."""
 import uuid
 import json
+import logging
 from datetime import datetime, timedelta, date, timezone
 from pathlib import Path
 from sqlalchemy import create_engine, Column, String, Integer, DateTime, Text, ForeignKey, Index
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from typing import List, Optional
+
+logger = logging.getLogger(__name__)
 
 Base = declarative_base()
 
@@ -238,6 +241,31 @@ class PassageStore:
         finally:
             session.close()
     
+    def has_any_passages(self) -> bool:
+        """Check if any passages exist in the database.
+        
+        Returns:
+            True if at least one passage exists, False otherwise.
+        """
+        session = self.get_session()
+        try:
+            count = session.query(Passage).count()
+            return count > 0
+        finally:
+            session.close()
+    
+    def get_passage_count(self) -> int:
+        """Get total number of passages in database.
+        
+        Returns:
+            Total count of passages.
+        """
+        session = self.get_session()
+        try:
+            return session.query(Passage).count()
+        finally:
+            session.close()
+    
     def save_passage(self, passage_id: str) -> SavedPassage:
         """Save a passage to user's collection.
         
@@ -301,3 +329,228 @@ class PassageStore:
             session.commit()
         finally:
             session.close()
+    
+    # -------- Archive and Reset Operations --------
+    
+    def archive_sessions(self) -> int:
+        """Archive session history to a backup file.
+        
+        Returns:
+            Number of sessions archived.
+        """
+        import csv
+        from pathlib import Path
+        
+        session = self.get_session()
+        try:
+            sessions = session.query(SessionHistory).all()
+            count = len(sessions)
+            
+            if count == 0:
+                return 0
+            
+            # Create archive directory
+            project_root = Path(__file__).parent.parent
+            archive_dir = project_root / "data" / "archive"
+            archive_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Create timestamped archive file
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            archive_file = archive_dir / f"sessions_archive_{timestamp}.csv"
+            
+            # Write to CSV
+            with archive_file.open("w", newline="", encoding="utf-8-sig") as f:
+                writer = csv.writer(f)
+                writer.writerow(["session_date", "passage_id", "created_at"])
+                for s in sessions:
+                    writer.writerow([
+                        s.session_date,
+                        s.passage_id,
+                        s.created_at.isoformat() if s.created_at else ""
+                    ])
+            
+            logger.info(f"Archived {count} sessions to {archive_file}")
+            return count
+        finally:
+            session.close()
+    
+    def archive_indexing_status(self) -> int:
+        """Archive indexing status to a backup file.
+        
+        Returns:
+            Number of indexing status records archived.
+        """
+        import csv
+        from pathlib import Path
+        
+        session = self.get_session()
+        try:
+            statuses = session.query(IndexingStatus).all()
+            count = len(statuses)
+            
+            if count == 0:
+                return 0
+            
+            # Create archive directory
+            project_root = Path(__file__).parent.parent
+            archive_dir = project_root / "data" / "archive"
+            archive_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Create timestamped archive file
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            archive_file = archive_dir / f"indexing_status_archive_{timestamp}.csv"
+            
+            # Write to CSV
+            with archive_file.open("w", newline="", encoding="utf-8-sig") as f:
+                writer = csv.writer(f)
+                writer.writerow(["file_path", "status", "indexed_at", "error_message", "created_at"])
+                for s in statuses:
+                    writer.writerow([
+                        s.file_path,
+                        s.status,
+                        s.indexed_at.isoformat() if s.indexed_at else "",
+                        s.error_message or "",
+                        s.created_at.isoformat() if s.created_at else ""
+                    ])
+            
+            logger.info(f"Archived {count} indexing status records to {archive_file}")
+            return count
+        finally:
+            session.close()
+    
+    def archive_saved_passages(self) -> int:
+        """Archive saved passages to a backup file.
+        
+        Returns:
+            Number of saved passages archived.
+        """
+        import csv
+        from pathlib import Path
+        
+        session = self.get_session()
+        try:
+            saved = session.query(SavedPassage).all()
+            count = len(saved)
+            
+            if count == 0:
+                return 0
+            
+            # Create archive directory
+            project_root = Path(__file__).parent.parent
+            archive_dir = project_root / "data" / "archive"
+            archive_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Create timestamped archive file
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            archive_file = archive_dir / f"saved_passages_archive_{timestamp}.csv"
+            
+            # Get passage details for saved passages
+            with archive_file.open("w", newline="", encoding="utf-8-sig") as f:
+                writer = csv.writer(f)
+                writer.writerow(["saved_id", "passage_id", "passage_text", "document_title", "saved_at", "notes"])
+                for s in saved:
+                    # Get passage details
+                    passage = session.query(Passage).filter_by(id=s.passage_id).first()
+                    passage_text = passage.text if passage else "[passage not found]"
+                    document_title = passage.document_title if passage else ""
+                    
+                    writer.writerow([
+                        s.id,
+                        s.passage_id,
+                        passage_text[:200] + "..." if len(passage_text) > 200 else passage_text,
+                        document_title,
+                        s.saved_at.isoformat() if s.saved_at else "",
+                        s.notes or ""
+                    ])
+            
+            logger.info(f"Archived {count} saved passages to {archive_file}")
+            return count
+        finally:
+            session.close()
+    
+    def reset_sessions(self, archive: bool = True) -> int:
+        """Reset session history (with optional archiving).
+        
+        Args:
+            archive: If True, archive before deleting.
+            
+        Returns:
+            Number of sessions deleted.
+        """
+        session = self.get_session()
+        try:
+            if archive:
+                archived = self.archive_sessions()
+                if archived > 0:
+                    logger.info(f"Archived {archived} sessions before reset")
+            
+            count = session.query(SessionHistory).count()
+            session.query(SessionHistory).delete()
+            session.commit()
+            logger.info(f"Reset {count} sessions")
+            return count
+        finally:
+            session.close()
+    
+    def reset_indexing_status(self, archive: bool = True) -> int:
+        """Reset indexing status (with optional archiving).
+        
+        Args:
+            archive: If True, archive before deleting.
+            
+        Returns:
+            Number of indexing status records deleted.
+        """
+        session = self.get_session()
+        try:
+            if archive:
+                archived = self.archive_indexing_status()
+                if archived > 0:
+                    logger.info(f"Archived {archived} indexing status records before reset")
+            
+            count = session.query(IndexingStatus).count()
+            session.query(IndexingStatus).delete()
+            session.commit()
+            logger.info(f"Reset {count} indexing status records")
+            return count
+        finally:
+            session.close()
+    
+    def reset_saved_passages(self, archive: bool = True) -> int:
+        """Reset saved passages (with optional archiving).
+        
+        Args:
+            archive: If True, archive before deleting.
+            
+        Returns:
+            Number of saved passages deleted.
+        """
+        session = self.get_session()
+        try:
+            if archive:
+                archived = self.archive_saved_passages()
+                if archived > 0:
+                    logger.info(f"Archived {archived} saved passages before reset")
+            
+            count = session.query(SavedPassage).count()
+            session.query(SavedPassage).delete()
+            session.commit()
+            logger.info(f"Reset {count} saved passages")
+            return count
+        finally:
+            session.close()
+    
+    def reset_all(self, archive: bool = True) -> dict:
+        """Reset all data (sessions, indexing status, saved passages).
+        
+        Args:
+            archive: If True, archive before deleting.
+            
+        Returns:
+            Dictionary with counts of deleted records.
+        """
+        return {
+            'sessions': self.reset_sessions(archive=archive),
+            'indexing_status': self.reset_indexing_status(archive=archive),
+            'saved_passages': self.reset_saved_passages(archive=archive),
+        }

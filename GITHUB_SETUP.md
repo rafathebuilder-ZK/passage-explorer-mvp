@@ -78,7 +78,8 @@ Add these topics to help discoverability:
 - ✅ `Library-Sample/` - Sample test documents (public domain)
 - ✅ `requirements.txt` - Dependencies
 - ✅ `README.md` - Documentation
-- ✅ `SPEC.md` - Specification document
+- ✅ `SPEC.md` - Phase 2 specification
+- ✅ `SPEC_ORIGINAL.md` - Original MVP specification
 - ✅ `WISHLIST.md` - Future enhancements
 - ✅ `LICENSE` - MIT License
 - ✅ `config.yaml.example` - Configuration template
@@ -158,8 +159,8 @@ After creating the repository:
 1. **Add repository description and topics** on GitHub
 2. **Create initial release** (optional):
    - Tag: `v0.1.0` or `v1.0.0`
-   - Title: "Initial Release - MVP Stage 1"
-   - Description: Brief summary of current features
+   - Title: "Initial Release - MVP Phase 1 & 2"
+   - Description: Brief summary of current features (see README.md for complete list)
 
 3. **Add badges** to README (optional):
    ```markdown
@@ -200,7 +201,8 @@ passage-explorer/
 ├── .gitignore              ✅ (excludes private files)
 ├── LICENSE                 ✅ (MIT License)
 ├── README.md               ✅ (updated with privacy info)
-├── SPEC.md                 ✅ (specification)
+├── SPEC.md                 ✅ (Phase 2 specification)
+├── SPEC_ORIGINAL.md        ✅ (original MVP specification)
 ├── WISHLIST.md             ✅ (future enhancements)
 ├── config.yaml.example     ✅ (template)
 ├── requirements.txt        ✅ (dependencies)

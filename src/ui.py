@@ -18,12 +18,13 @@ class PassageUI:
         self.console = Console()
         self.running = True
     
-    def display_passage(self, passage, store):
+    def display_passage(self, passage, store, indexing_status=None):
         """Display a passage with metadata and actions.
         
         Args:
             passage: Passage object from database.
             store: PassageStore instance.
+            indexing_status: Optional dict with 'is_indexing' (bool) and 'pending_count' (int).
         """
         # Record that this passage was shown
         store.record_session_passage(passage.id)
@@ -64,9 +65,16 @@ class PassageUI:
             Layout(name="actions", size=4)
         )
         
-        # Header
+        # Header with optional indexing status
+        header_text = "[bold cyan]Passage Explorer[/bold cyan]"
+        if indexing_status and indexing_status.get('is_indexing'):
+            pending = indexing_status.get('pending_count', 0)
+            if pending > 0:
+                header_text += f"  [dim]│ Indexing: {pending} files pending[/dim]"
+            else:
+                header_text += "  [dim]│ Indexing in background...[/dim]"
         layout["header"].update(Panel(
-            "[bold cyan]Passage Explorer[/bold cyan]",
+            header_text,
             border_style="cyan"
         ))
         

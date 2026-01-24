@@ -41,6 +41,68 @@ class PassageExplorer:
         import threading
         self._indexing_lock = threading.Lock()
         self._indexing_thread_started = False
+        self._cancel_indexing_event = threading.Event()  # For cooperative cancellation
+    
+    def _has_supported_files(self, library_path: Path) -> tuple[bool, int]:
+        """Check if library has any supported files.
+        
+        Args:
+            library_path: Path to library directory.
+            
+        Returns:
+            Tuple of (has_files, total_count) where has_files is True if any supported
+            files exist, and total_count is the total number of supported files found.
+        """
+        supported_extensions = {
+            '.txt',
+            '.html',
+            '.htm',
+            '.md',
+            '.markdown',
+            '.pdf',
+        }
+        files = []
+        
+        for ext in supported_extensions:
+            files.extend(library_path.rglob(f'*{ext}'))
+        
+        return (len(files) > 0, len(files))
+    
+    def _discover_and_register_files(self, library_path: Path) -> int:
+        """Discover all supported files and register them as pending if not already registered.
+        
+        Args:
+            library_path: Path to library directory.
+            
+        Returns:
+            Number of newly registered files.
+        """
+        supported_extensions = {
+            '.txt',
+            '.html',
+            '.htm',
+            '.md',
+            '.markdown',
+            '.pdf',
+        }
+        files = []
+        
+        for ext in supported_extensions:
+            files.extend(library_path.rglob(f'*{ext}'))
+        
+        newly_registered = 0
+        for file_path in files:
+            abs_path = str(file_path.resolve())
+            status = self.store.get_indexing_status(abs_path)
+            if not status:
+                # File not yet registered - register as pending
+                self.store.set_indexing_status(abs_path, 'pending')
+                newly_registered += 1
+        
+        if newly_registered > 0:
+            logger.info(f"Discovered and registered {newly_registered} new file(s) as pending")
+        
+        return newly_registered
     
     def index_files(self, library_path: Path, batch_size: Optional[int] = None):
         """Index files from library directory.
@@ -67,12 +129,17 @@ class PassageExplorer:
             logger.warning(f"No supported files found in {library_path}")
             return
         
-        # Filter to only pending files
+        # Filter to only pending files and register them in database
         pending_files = []
         for file_path in files:
             abs_path = str(file_path.resolve())
             status = self.store.get_indexing_status(abs_path)
-            if not status or status.status != 'completed':
+            if not status:
+                # File not yet registered - register as pending
+                self.store.set_indexing_status(abs_path, 'pending')
+                pending_files.append(file_path)
+            elif status.status != 'completed':
+                # File is pending, indexing, or failed - include it
                 pending_files.append(file_path)
         
         if not pending_files:
@@ -89,6 +156,16 @@ class PassageExplorer:
         logger.info(f"Indexing {total} file(s)...")
         
         for i, file_path in enumerate(files_to_index, 1):
+            # Check for cancellation before processing each file
+            if self._cancel_indexing_event.is_set():
+                logger.info("Indexing cancelled by user")
+                # Mark current file as pending if it was marked as indexing
+                abs_path = str(file_path.resolve())
+                status = self.store.get_indexing_status(abs_path)
+                if status and status.status == 'indexing':
+                    self.store.set_indexing_status(abs_path, 'pending')
+                break
+            
             abs_path = str(file_path.resolve())
             
             try:
@@ -102,7 +179,7 @@ class PassageExplorer:
                 timeout_seconds = 300.0 if is_pdf else None  # 5 minutes = 300 seconds
                 
                 try:
-                    doc_data = self.processor.process(file_path, timeout_seconds=timeout_seconds)
+                    doc_data = self.processor.process(file_path, timeout_seconds=timeout_seconds, cancellation_event=self._cancel_indexing_event)
                 except TimeoutError as e:
                     # PDF indexing exceeded timeout - mark as failed and continue
                     error_msg = f"PDF indexing timeout after 5 minutes: {e}"
@@ -132,6 +209,110 @@ class PassageExplorer:
             except Exception as e:
                 logger.error(f"Error indexing {file_path}: {e}")
                 self.store.set_indexing_status(abs_path, 'failed', str(e))
+    
+    def index_files_until_passage_available(self, library_path: Path, max_files: int = 2):
+        """Index files until at least one passage is available.
+        
+        Args:
+            library_path: Path to library directory.
+            max_files: Maximum number of files to index before giving up.
+            
+        Returns:
+            True if at least one passage was created, False otherwise.
+        """
+        # Find all supported files
+        supported_extensions = {
+            '.txt',
+            '.html',
+            '.htm',
+            '.md',
+            '.markdown',
+            '.pdf',
+        }
+        files = []
+        
+        for ext in supported_extensions:
+            files.extend(library_path.rglob(f'*{ext}'))
+        
+        if not files:
+            logger.warning(f"No supported files found in {library_path}")
+            return False
+        
+        # Filter to only pending files and register them in database
+        pending_files = []
+        for file_path in files:
+            abs_path = str(file_path.resolve())
+            status = self.store.get_indexing_status(abs_path)
+            if not status:
+                # File not yet registered - register as pending
+                self.store.set_indexing_status(abs_path, 'pending')
+                pending_files.append(file_path)
+            elif status.status != 'completed':
+                # File is pending, indexing, or failed - include it
+                pending_files.append(file_path)
+        
+        if not pending_files:
+            logger.info("All files already indexed")
+            # Check if we have passages
+            return self.store.has_any_passages()
+        
+        # Limit to max_files
+        files_to_index = pending_files[:max_files]
+        
+        logger.info(f"Indexing up to {len(files_to_index)} file(s) to get first passage...")
+        
+        for i, file_path in enumerate(files_to_index, 1):
+            abs_path = str(file_path.resolve())
+            
+            try:
+                self.ui.show_indexing_progress(i, len(files_to_index), file_path.name)
+                
+                # Mark as indexing
+                self.store.set_indexing_status(abs_path, 'indexing')
+                
+                # Process file - apply 5-minute timeout for PDF files
+                is_pdf = file_path.suffix.lower() == '.pdf'
+                timeout_seconds = 300.0 if is_pdf else None  # 5 minutes = 300 seconds
+                
+                try:
+                    doc_data = self.processor.process(file_path, timeout_seconds=timeout_seconds, cancellation_event=self._cancel_indexing_event)
+                except TimeoutError as e:
+                    # PDF indexing exceeded timeout - mark as failed and continue
+                    error_msg = f"PDF indexing timeout after 5 minutes: {e}"
+                    logger.warning(error_msg)
+                    self.store.set_indexing_status(abs_path, 'failed', error_msg)
+                    continue
+                
+                if not doc_data:
+                    self.store.set_indexing_status(abs_path, 'failed', 'Unsupported format or processing error')
+                    continue
+                
+                # Extract passages
+                passages = self.extractor.extract_passages(doc_data, file_path)
+                
+                # Store passages (with embeddings where available)
+                for passage_data in passages:
+                    if self.similarity.enabled:
+                        emb = self.similarity.embed_text(passage_data['text'])
+                        if emb is not None:
+                            passage_data['embedding'] = json.dumps(emb)
+                    self.store.add_passage(passage_data)
+                
+                # Mark as completed
+                self.store.set_indexing_status(abs_path, 'completed')
+                logger.info(f"Indexed {file_path.name}: {len(passages)} passages")
+                
+                # Check if we now have at least one passage
+                if self.store.has_any_passages():
+                    logger.info("Passage available, stopping minimal indexing")
+                    return True
+                
+            except Exception as e:
+                logger.error(f"Error indexing {file_path}: {e}")
+                self.store.set_indexing_status(abs_path, 'failed', str(e))
+        
+        # Check if we have passages after all attempts
+        return self.store.has_any_passages()
 
     # -------- Stage 2 helpers --------
 
@@ -141,6 +322,11 @@ class PassageExplorer:
 
     def get_context_for_passage(self, passage: Passage) -> str:
         """Get ~400-word context around a passage."""
+        # Use PDF-specific extraction for PDF files
+        if passage.file_type == 'pdf':
+            return self._get_pdf_context_for_passage(passage)
+        
+        # For text-based files (txt, html, md), read as text
         try:
             file_path = Path(passage.source_file)
             try:
@@ -155,6 +341,82 @@ class PassageExplorer:
         end = min(len(text), passage.end_char + 1200)
         context = text[start:end]
         return context.strip()
+    
+    def _get_pdf_context_for_passage(self, passage: Passage) -> str:
+        """Get context for a PDF passage using pdfplumber.
+        
+        Args:
+            passage: Passage object with PDF file information.
+            
+        Returns:
+            Context text around the passage (~400 words).
+        """
+        try:
+            import pdfplumber
+        except ImportError:
+            logger.error("pdfplumber required for PDF context extraction")
+            return passage.text
+        
+        try:
+            file_path = Path(passage.source_file)
+            if not file_path.exists():
+                logger.error(f"PDF file not found: {file_path}")
+                return passage.text
+            
+            with pdfplumber.open(str(file_path)) as pdf:
+                # Get the page containing the passage
+                page_num = passage.page_number
+                if page_num is None or page_num < 1 or page_num > len(pdf.pages):
+                    # Fallback: try to find page from passage text
+                    logger.warning(f"Invalid page number {page_num} for passage, trying all pages")
+                    # Extract text from all pages and find the passage
+                    full_text = ""
+                    for page in pdf.pages:
+                        page_text = page.extract_text() or ""
+                        full_text += page_text + "\n\n"
+                    
+                    # Find passage in full text and extract context
+                    passage_pos = full_text.find(passage.text)
+                    if passage_pos == -1:
+                        return passage.text
+                    
+                    start = max(0, passage_pos - 1200)
+                    end = min(len(full_text), passage_pos + len(passage.text) + 1200)
+                    context = full_text[start:end]
+                    return context.strip()
+                
+                # Extract text from the page containing the passage
+                page = pdf.pages[page_num - 1]  # pdfplumber uses 0-based indexing
+                page_text = page.extract_text() or ""
+                
+                if not page_text.strip():
+                    logger.warning(f"Page {page_num} has no extractable text")
+                    return passage.text
+                
+                # Find the passage text in the page
+                passage_pos = page_text.find(passage.text)
+                if passage_pos == -1:
+                    # Passage not found in page text - return page text as context
+                    logger.warning(f"Passage text not found in page {page_num}, returning full page")
+                    return page_text.strip()
+                
+                # Extract context around the passage (~400 words = ~2000 chars)
+                # Aim for ~400 words, which is roughly 2000 characters
+                context_size = 2000
+                start = max(0, passage_pos - context_size)
+                end = min(len(page_text), passage_pos + len(passage.text) + context_size)
+                context = page_text[start:end]
+                
+                # Clean up whitespace - normalize multiple spaces/newlines
+                import re
+                context = re.sub(r'\n{3,}', '\n\n', context)  # Max 2 newlines
+                context = re.sub(r' {2,}', ' ', context)  # Max 1 space
+                
+                return context.strip()
+                
+        except Exception as e:
+            logger.error(f"Error extracting PDF context: {e}", exc_info=True)
+            return passage.text
 
     def save_passage_to_csv(self, passage: Passage) -> None:
         """Append passage metadata to CSV export."""
@@ -247,6 +509,11 @@ class PassageExplorer:
         def worker():
             logger.info("Background indexing thread started.")
             while True:
+                # Check for cancellation
+                if self._cancel_indexing_event.is_set():
+                    logger.info("Background indexing cancelled by user")
+                    break
+                
                 # Get a small set of pending files
                 pending = self.store.get_pending_files(
                     limit=self.config.get("progressive_indexing_batch_size", 4)
@@ -254,7 +521,17 @@ class PassageExplorer:
                 if not pending:
                     logger.info("Background indexing: no more pending files.")
                     break
+                
+                # Check for cancellation again before acquiring lock
+                if self._cancel_indexing_event.is_set():
+                    logger.info("Background indexing cancelled by user")
+                    break
+                
                 with self._indexing_lock:
+                    # Check once more after acquiring lock
+                    if self._cancel_indexing_event.is_set():
+                        logger.info("Background indexing cancelled by user")
+                        break
                     self.index_files(
                         library_path,
                         batch_size=self.config.get("progressive_indexing_batch_size", 4),
@@ -276,16 +553,53 @@ class PassageExplorer:
         
         library_path = self.config.library_path
         
-        # Initial indexing (small batch)
-        logger.info("Starting initial indexing...")
-        with self._indexing_lock:
-            self.index_files(
-                library_path,
-                batch_size=self.config.get("initial_indexing_batch_size", 8),
-            )
-
-        # Start background progressive indexing
-        self.start_background_indexing(library_path)
+        # Fast startup: Check if passages already exist
+        fast_startup = self.config.get('fast_startup', True)
+        has_passages = self.store.has_any_passages()
+        
+        if fast_startup and has_passages:
+            # Passages exist - skip blocking indexing, show passage immediately
+            logger.info("Passages found in database, skipping initial indexing")
+            # Discover and register any new files before starting background indexing
+            self._discover_and_register_files(library_path)
+            # Start background indexing in parallel
+            self.start_background_indexing(library_path)
+        else:
+            # No passages - do minimal blocking index
+            logger.info("No passages found, running minimal initial indexing...")
+            
+            # Check if library has any supported files
+            has_files, file_count = self._has_supported_files(library_path)
+            if not has_files:
+                self.ui.show_message(
+                    f"Error: No supported files found in library: {library_path}\n"
+                    "Supported formats: .txt, .html, .md, .pdf",
+                    'error'
+                )
+                logger.error(f"No supported files in library: {library_path}")
+                sys.exit(2)
+            
+            # Index just enough to get at least one passage
+            min_indexing = self.config.get('min_first_run_indexing', 2)
+            with self._indexing_lock:
+                success = self.index_files_until_passage_available(library_path, max_files=min_indexing)
+            
+            if not success:
+                # No passages after minimal indexing - show helpful error
+                self.ui.show_message(
+                    f"Error: No passages could be extracted from the first {min_indexing} file(s).\n"
+                    "Possible causes:\n"
+                    "  - Files are empty or corrupted\n"
+                    "  - Files contain no extractable text\n"
+                    "  - Permission errors\n"
+                    "Check the logs for details. Background indexing will continue.",
+                    'error'
+                )
+                logger.error("No passages extracted after minimal indexing")
+                # Continue anyway - background indexing might succeed
+            
+            # Start background indexing for remaining files
+            self.start_background_indexing(library_path)
         
         # Main loop
         current_passage: Optional[Passage] = None
@@ -297,24 +611,49 @@ class PassageExplorer:
                         exclude_days=self.config.get('session_history_days', 30)
                     )
                     if not passage:
-                        self.ui.show_message(
-                            "No passages available. Try resetting session history with --reset-sessions",
-                            'warning'
-                        )
+                        # Check if we have any passages at all
+                        if not self.store.has_any_passages():
+                            self.ui.show_message(
+                                "Error: No passages available in database.\n"
+                                "Possible causes:\n"
+                                "  - Library is empty or contains no supported files\n"
+                                "  - All files failed to index\n"
+                                "  - No passages could be extracted from files\n"
+                                "Check the logs for details. Background indexing may still be in progress.",
+                                'error'
+                            )
+                        else:
+                            # Passages exist but all shown in last 30 days
+                            self.ui.show_message(
+                                "No new passages available (all shown in last 30 days).\n"
+                                "Options:\n"
+                                "  - Wait for background indexing to complete\n"
+                                "  - Reset session history: --reset-sessions\n"
+                                "  - Press 'i' to manually trigger next batch",
+                                'warning'
+                            )
                         break
                     current_passage = passage
                 else:
                     passage = current_passage
 
-                # Display passage
+                # Display passage with indexing status
                 self.ui.clear()
-                self.ui.display_passage(passage, self.store)
+                # Check if background indexing is running
+                pending_files = self.store.get_pending_files()
+                indexing_status = {
+                    'is_indexing': self._indexing_thread_started and len(pending_files) > 0,
+                    'pending_count': len(pending_files)
+                }
+                self.ui.display_passage(passage, self.store, indexing_status=indexing_status)
                 
                 # Get user action
                 action = self.ui.get_user_input()
                 
                 if action == 'q':
                     self.ui.show_message("Goodbye!", 'info')
+                    # Signal cancellation for background indexing
+                    self._cancel_indexing_event.set()
                     break
                 elif action == '?':
                     self.ui.clear()
@@ -371,6 +710,8 @@ class PassageExplorer:
                 
             except KeyboardInterrupt:
                 self.ui.show_message("\nGoodbye!", 'info')
+                # Signal cancellation for background indexing
+                self._cancel_indexing_event.set()
                 break
             except Exception as e:
                 logger.error(f"Error in main loop: {e}", exc_info=True)
@@ -404,18 +745,78 @@ def main():
         config.set('library_path', args.library)
         config.set('library_path_absolute', False)
     
-    # Handle reset sessions
+    # Handle reset commands with triple confirmation
+    def confirm_reset(action_name: str, item_name: str) -> bool:
+        """Triple confirmation for destructive operations.
+        
+        Args:
+            action_name: Name of the action (e.g., "reset session history")
+            item_name: Name of items being reset (e.g., "sessions")
+            
+        Returns:
+            True if user confirmed three times, False otherwise.
+        """
+        print(f"\n⚠️  WARNING: You are about to {action_name}.")
+        print(f"   This will archive all {item_name} to data/archive/ before deletion.")
+        print(f"   This action cannot be undone (except by restoring from archive).\n")
+        
+        confirmations = [
+            f"Type 'YES' to confirm {action_name}: ",
+            f"Type 'CONFIRM' to confirm {action_name}: ",
+            f"Type 'DELETE' to finalize {action_name}: "
+        ]
+        
+        expected = ['YES', 'CONFIRM', 'DELETE']
+        
+        for i, (prompt, expected_value) in enumerate(zip(confirmations, expected), 1):
+            response = input(prompt).strip()
+            if response != expected_value:
+                print(f"\n❌ Confirmation {i} failed. Reset cancelled.")
+                return False
+        
+        print(f"\n✅ All confirmations received. Proceeding with {action_name}...\n")
+        return True
+    
     if args.reset_sessions:
-        from .passage_store import SessionHistory
+        if not confirm_reset("reset session history", "sessions"):
+            sys.exit(0)
         store = PassageStore()
-        session = store.get_session()
-        try:
-            session.query(SessionHistory).delete()
-            session.commit()
-            logger.info("Session history cleared")
-            print("Session history cleared")
-        finally:
-            session.close()
+        count = store.reset_sessions(archive=True)
+        print(f"✅ Session history reset complete. {count} sessions archived and deleted.")
+        logger.info(f"Session history reset: {count} sessions archived and deleted")
+        return
+    
+    if args.reset_indexing:
+        if not confirm_reset("reset indexing status", "indexing status records"):
+            sys.exit(0)
+        store = PassageStore()
+        count = store.reset_indexing_status(archive=True)
+        print(f"✅ Indexing status reset complete. {count} records archived and deleted.")
+        print("   Note: Files will need to be re-indexed.")
+        logger.info(f"Indexing status reset: {count} records archived and deleted")
+        return
+    
+    if args.reset_saved:
+        if not confirm_reset("reset saved passages", "saved passages"):
+            sys.exit(0)
+        store = PassageStore()
+        count = store.reset_saved_passages(archive=True)
+        print(f"✅ Saved passages reset complete. {count} passages archived and deleted.")
+        logger.info(f"Saved passages reset: {count} passages archived and deleted")
+        return
+    
+    if args.reset_all:
+        if not confirm_reset("reset all application data", "all data (sessions, indexing status, saved passages)"):
+            sys.exit(0)
+        store = PassageStore()
+        results = store.reset_all(archive=True)
+        print(f"✅ All data reset complete:")
+        print(f"   - {results['sessions']} sessions archived and deleted")
+        print(f"   - {results['indexing_status']} indexing status records archived and deleted")
+        print(f"   - {results['saved_passages']} saved passages archived and deleted")
+        print(f"\n   All archives saved to: data/archive/")
+        print(f"   Note: Files will need to be re-indexed.")
+        logger.info(f"All data reset: {results}")
         return
     
     # Create and run application
@@ -428,6 +829,8 @@ def main():
     except KeyboardInterrupt:
         logger.info("Interrupted by user")
         try:
+            # Signal cancellation for background indexing
+            app._cancel_indexing_event.set()
             app.store.log_usage_event("app_interrupt")
         except Exception:
             pass

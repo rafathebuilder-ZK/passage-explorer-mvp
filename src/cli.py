@@ -78,7 +78,25 @@ Examples:
         parser.add_argument(
             '--reset-sessions',
             action='store_true',
-            help='Clear session history (useful for testing)'
+            help='Reset session history (archived before deletion)'
+        )
+        
+        parser.add_argument(
+            '--reset-indexing',
+            action='store_true',
+            help='Reset indexing status (archived before deletion)'
+        )
+        
+        parser.add_argument(
+            '--reset-saved',
+            action='store_true',
+            help='Reset saved passages (archived before deletion)'
+        )
+        
+        parser.add_argument(
+            '--reset-all',
+            action='store_true',
+            help='Reset all data: sessions, indexing status, and saved passages (archived before deletion)'
         )
         
         return parser.parse_args()

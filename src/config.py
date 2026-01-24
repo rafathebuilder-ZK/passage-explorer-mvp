@@ -16,6 +16,9 @@ class Config:
         'session_history_days': 30,
         'initial_indexing_batch_size': 8,
         'progressive_indexing_batch_size': 4,
+        # Fast startup settings (Phase 2)
+        'fast_startup': True,  # Skip blocking indexing if passages exist
+        'min_first_run_indexing': 2,  # Max files to index on first run before showing passage
         # Stage 2+ settings
         'embedding_model': 'local',  # 'local' or 'openai' (only local implemented)
         'openai_api_key': None,

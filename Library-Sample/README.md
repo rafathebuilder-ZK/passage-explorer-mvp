@@ -21,12 +21,25 @@ All files contain excerpts from public domain works:
 
 ## Usage
 
-This sample library is designed for:
-- **Stage 1 MVP**: Start with `txt/` folder only
-- **Stage 3**: Add `html/` and `md/` folders
-- **Stage 4**: Use `pdf/` files (already included, ready for testing)
+This sample library contains test documents in all supported formats:
+- **TXT files**: Plain text format (`txt/` folder)
+- **HTML files**: HTML format (`html/` folder)
+- **Markdown files**: Markdown format (`md/` folder)
+- **PDF files**: PDF format (`pdf/` folder)
 
-The files are clean, uncorrupted, and contain sufficient text for passage extraction testing.
+All formats are fully supported. The files are clean, uncorrupted, and contain sufficient text for passage extraction testing.
+
+### Testing the App
+
+Use this sample library to test Passage Explorer:
+
+```bash
+# Use default library path (Library-Sample)
+python -m src.main
+
+# Or specify explicitly
+python -m src.main --library ./Library-Sample
+```
 
 ## Note
 
