@@ -1,0 +1,21 @@
+# Passage Explorer Configuration Template
+# Copy this file to config.yaml and customize for your setup
+
+# Library Configuration
+library_path: "./Library-Sample"  # Path to your document library (relative or absolute)
+library_path_absolute: false      # If true, library_path is treated as absolute path
+
+# Passage Settings
+max_passage_length: 420           # Maximum characters per passage
+context_words: 400                 # Words to show in context expansion
+
+# Session Settings
+session_history_days: 30           # Days to exclude from passage selection
+
+# Indexing Settings
+initial_indexing_batch_size: 8    # Files to index on first run
+progressive_indexing_batch_size: 4 # Files per progressive batch
+
+# Advanced Settings (Stage 2+)
+embedding_model: "local"           # "local" or "openai"
+openai_api_key: null               # Only needed if embedding_model is "openai"

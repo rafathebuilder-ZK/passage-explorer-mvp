@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Application data
+data/
+*.db
+*.log
+*.csv
+
+# Configuration (contains user-specific paths - keep private)
+config.yaml
+
+# User's private library (never commit personal documents)
+Library/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Model cache (sentence-transformers downloads models here)
+.cache/
+models/
+*.pt
+*.pth
