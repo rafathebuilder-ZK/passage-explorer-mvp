@@ -1,6 +1,6 @@
 # Passage Explorer - Phase 2 Specification
 
-> **Note**: This document describes Phase 2 improvements. For the original MVP specification, see [SPEC_ORIGINAL.md](SPEC_ORIGINAL.md). For current status, see [README.md](README.md).
+> **Note**: This document describes Phase 2 improvements. For the original MVP specification, see [SPEC_PHASE1.md](SPEC_PHASE1.md). For current status, see [README.md](README.md).
 
 ## Overview
 
@@ -99,7 +99,7 @@ Added to `PassageStore`:
 
 ## Related Documents
 
-- [SPEC_ORIGINAL.md](SPEC_ORIGINAL.md): Original MVP specification
+- [SPEC_PHASE1.md](SPEC_PHASE1.md): Phase 1 - Original MVP specification
 - [README.md](README.md): Current features and usage
 - [WISHLIST.md](WISHLIST.md): Future enhancements
 - `.cursor/plans/phase_2_*.plan.md`: Detailed implementation plan

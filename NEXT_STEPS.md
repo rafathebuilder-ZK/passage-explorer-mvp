@@ -47,7 +47,9 @@ You **SHOULD** see:
 - ✅ `LICENSE`
 - ✅ `config.yaml.example`
 - ✅ `requirements.txt`
-- ✅ `SPEC.md`
+- ✅ `SPEC_PHASE1.md`
+- ✅ `SPEC_PHASE2.md`
+- ✅ `SPEC_PHASE3.md`
 - ✅ `WISHLIST.md`
 - ✅ `.gitignore`
 

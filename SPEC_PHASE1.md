@@ -348,7 +348,7 @@ npcapp/
 ├── requirements.txt
 ├── README.md                  # User documentation & installation
 ├── CHANGELOG.md               # Version history
-└── SPEC.md                     # This document
+└── SPEC_PHASE1.md              # This document
 ```
 
 ## 4. Implementation Details

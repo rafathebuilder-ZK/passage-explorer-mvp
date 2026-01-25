@@ -169,8 +169,9 @@ See [WISHLIST.md](WISHLIST.md) for planned features including:
 ## Documentation Files
 
 - **README.md** (this file) - Main documentation: features, installation, usage
-- **SPEC.md** - Phase 2 specification (fast startup improvements)
-- **SPEC_ORIGINAL.md** - Original MVP specification (detailed, all stages)
+- **SPEC_PHASE1.md** - Phase 1 specification (original MVP, detailed, all stages)
+- **SPEC_PHASE2.md** - Phase 2 specification (fast startup improvements)
+- **SPEC_PHASE3.md** - Phase 3 specification (full-featured web demo)
 - **WISHLIST.md** - Future enhancement ideas and feature requests
 - **GITHUB_SETUP.md** - Guide for setting up GitHub repository
 - **NEXT_STEPS.md** - Step-by-step guide for pushing to GitHub
@@ -205,8 +206,59 @@ npcapp/
 ├── config.yaml.example     # Configuration template
 ├── requirements.txt         # Python dependencies
 ├── LICENSE                  # MIT License
+├── web_app.py              # Streamlit web demo entrypoint (NPC Library)
 └── README.md               # This file
 ```
+
+## Web Demo (NPC Library)
+
+A minimal web demo is available on top of the existing terminal app. It lets you browse passages from the sample **NPC Library** (`Library-Sample/`) in a bare-bones, mobile-friendly web UI.
+
+### Prerequisites
+
+- Install dependencies (including Streamlit):
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Prepare the demo database
+
+Make sure the sample library has been indexed at least once using the existing terminal app:
+
+```bash
+python -m src.main --library ./Library-Sample
+```
+
+This populates `data/passages.db`, which the web demo reads in **read-only** mode.
+
+### Run the web demo locally
+
+```bash
+streamlit run web_app.py
+```
+
+This starts a local web server and opens a browser tab where you can:
+- Select a work from the NPC Library (Alice, Moby-Dick, etc.)
+- Browse extracted passages with simple pagination
+
+The terminal app remains unchanged and can still be run with:
+
+```bash
+python -m src.main --library ./Library-Sample
+```
+
+### Deploying the web demo
+
+To share a public link (e.g. in Discord), deploy `web_app.py` to a Streamlit-compatible host (such as Streamlit Community Cloud or Hugging Face Spaces) and configure the command:
+
+```bash
+streamlit run web_app.py --server.port $PORT --server.address 0.0.0.0
+```
+
+The hosted app will provide an HTTPS URL you can share. The web UI is intentionally minimal and text-focused so it works well on both desktop and mobile browsers.
 
 ## How It Works
 

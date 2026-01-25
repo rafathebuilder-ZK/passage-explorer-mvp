@@ -78,8 +78,9 @@ Add these topics to help discoverability:
 - ✅ `Library-Sample/` - Sample test documents (public domain)
 - ✅ `requirements.txt` - Dependencies
 - ✅ `README.md` - Documentation
-- ✅ `SPEC.md` - Phase 2 specification
-- ✅ `SPEC_ORIGINAL.md` - Original MVP specification
+- ✅ `SPEC_PHASE1.md` - Phase 1 specification (original MVP)
+- ✅ `SPEC_PHASE2.md` - Phase 2 specification (fast startup improvements)
+- ✅ `SPEC_PHASE3.md` - Phase 3 specification (full-featured web demo)
 - ✅ `WISHLIST.md` - Future enhancements
 - ✅ `LICENSE` - MIT License
 - ✅ `config.yaml.example` - Configuration template

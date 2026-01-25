@@ -1,6 +1,6 @@
 # Passage Explorer - Phase 3 Specification
 
-> **Note**: This document describes Phase 3: Full-Featured Web Demo. For previous phases, see [SPEC_ORIGINAL.md](SPEC_ORIGINAL.md) (Phase 1) and [SPEC.md](SPEC.md) (Phase 2). For current status, see [README.md](README.md).
+> **Note**: This document describes Phase 3: Full-Featured Web Demo. For previous phases, see [SPEC_PHASE1.md](SPEC_PHASE1.md) (Phase 1) and [SPEC_PHASE2.md](SPEC_PHASE2.md) (Phase 2). For current status, see [README.md](README.md).
 
 ## Overview
 
@@ -10,8 +10,8 @@ Phase 3 transforms the read-only Streamlit feed demo into a fully interactive we
 
 Phase 3 builds on Phases 1 and 2 by adding a complete web interface:
 
-- **Phase 1** (SPEC_ORIGINAL.md): Core terminal application with passage extraction, session tracking, and terminal UI
-- **Phase 2** (SPEC.md): Fast startup with deferred background indexing, improved UX
+- **Phase 1** ([SPEC_PHASE1.md](SPEC_PHASE1.md)): Core terminal application with passage extraction, session tracking, and terminal UI
+- **Phase 2** ([SPEC_PHASE2.md](SPEC_PHASE2.md)): Fast startup with deferred background indexing, improved UX
 - **Phase 3** (this document): Full-featured web demo with feed-based interface, terminal styling, and all terminal app actions
 
 ## Problem Statement
@@ -203,8 +203,8 @@ Uses Library-Sample as the demo library:
 
 ## Related Documents
 
-- [SPEC_ORIGINAL.md](SPEC_ORIGINAL.md): Phase 1 - Original MVP specification
-- [SPEC.md](SPEC.md): Phase 2 - Fast startup improvements
+- [SPEC_PHASE1.md](SPEC_PHASE1.md): Phase 1 - Original MVP specification
+- [SPEC_PHASE2.md](SPEC_PHASE2.md): Phase 2 - Fast startup improvements
 - [README.md](README.md): Current features and usage
 - [WISHLIST.md](WISHLIST.md): Future enhancements
 
