@@ -9,7 +9,7 @@ This web app replicates all functionality from the terminal app:
 - Index next batch (i): Manually trigger indexing of pending files
 - Help (?): Show usage information
 
-Uses Library-Sample as the demo library.
+Uses Library-Sample (NPC Manager blog posts) as the demo library.
 
 Run locally with:
     streamlit run web_app.py
@@ -606,7 +606,7 @@ def display_help() -> None:
     so you can explore multiple passages at once.
 
     **Library:**
-    This demo uses the Library-Sample collection.
+    This demo uses the Library-Sample collection (NPC Manager blog posts).
     """
     st.markdown(help_text)
 
