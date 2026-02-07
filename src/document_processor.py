@@ -281,10 +281,19 @@ class PDFHandler:
                         )
                 
                 try:
-                    page_text = page.extract_text() or ""
+                    # Try layout-aware extraction first (better for multi-column PDFs)
+                    page_text = page.extract_text(layout=True) or ""
+                    
+                    # If that fails or returns empty, try without layout as fallback
+                    if not page_text.strip():
+                        page_text = page.extract_text() or ""
                 except Exception as e:
                     logger.warning(f"Failed to extract text from page {page_index} of {file_path}: {e}")
-                    continue
+                    # Try fallback extraction without layout
+                    try:
+                        page_text = page.extract_text() or ""
+                    except:
+                        continue
 
                 if not page_text.strip():
                     continue

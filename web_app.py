@@ -766,13 +766,21 @@ def main() -> None:
     config = get_config()
     library_path = config.library_path
     
-    # Clear database when switching to Library SOP (one-time)
+    # Clear database when switching to Library SOP or after PDF extraction improvements (one-time)
     if "database_cleared_for_library_sop" not in st.session_state:
         if str(library_path).endswith("Library SOP"):
             with st.spinner("Clearing database for new library..."):
                 clear_results = clear_all_database_data()
                 st.session_state.database_cleared_for_library_sop = True
                 logger.info(f"Cleared database: {clear_results}")
+    
+    # Force clear database after PDF extraction improvement (one-time reset)
+    if "database_cleared_for_pdf_improvement" not in st.session_state:
+        if str(library_path).endswith("Library SOP"):
+            with st.spinner("Clearing database for improved PDF extraction..."):
+                clear_results = clear_all_database_data()
+                st.session_state.database_cleared_for_pdf_improvement = True
+                logger.info(f"Cleared database for PDF improvement: {clear_results}")
 
     # Show header immediately (before any heavy operations)
     header_col1, header_col2 = st.columns([3, 1])
