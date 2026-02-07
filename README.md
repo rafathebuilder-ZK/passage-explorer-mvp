@@ -113,7 +113,7 @@ cp config.yaml.example config.yaml
 Default settings:
 
 ```yaml
-library_path: "./Library-Sample"
+library_path: "./Library SOP"
 max_passage_length: 420
 session_history_days: 30
 initial_indexing_batch_size: 8
@@ -200,7 +200,7 @@ npcapp/
 │       ├── sessions_archive_YYYYMMDD_HHMMSS.csv
 │       ├── indexing_status_archive_YYYYMMDD_HHMMSS.csv
 │       └── saved_passages_archive_YYYYMMDD_HHMMSS.csv
-├── Library-Sample/          # Sample documents for testing (public domain)
+├── Library SOP/            # Sample documents for testing (Research Archive)
 ├── Library/                 # Your personal library (not in git, keep private)
 ├── config.yaml             # Your configuration (created on first run, not in git)
 ├── config.yaml.example     # Configuration template
@@ -210,9 +210,9 @@ npcapp/
 └── README.md               # This file
 ```
 
-## Web Demo (NPC Library)
+## Web Demo
 
-A minimal web demo is available on top of the existing terminal app. It lets you browse passages from the sample **NPC Library** (`Library-Sample/`) in a bare-bones, mobile-friendly web UI.
+A minimal web demo is available on top of the existing terminal app. It lets you browse passages from the **Library SOP** collection in a bare-bones, mobile-friendly web UI.
 
 ### Prerequisites
 
@@ -226,10 +226,10 @@ pip install -r requirements.txt
 
 ### Prepare the demo database
 
-Make sure the sample library has been indexed at least once using the existing terminal app:
+The web demo will automatically index Library SOP on first run. You can also manually index using the terminal app:
 
 ```bash
-python -m src.main --library ./Library-Sample
+python -m src.main --library "./Library SOP"
 ```
 
 This populates `data/passages.db`, which the web demo reads in **read-only** mode.
@@ -241,13 +241,13 @@ streamlit run web_app.py
 ```
 
 This starts a local web server and opens a browser tab where you can:
-- Select a work from the NPC Library (Alice, Moby-Dick, etc.)
-- Browse extracted passages with simple pagination
+- Browse passages from Library SOP Research Archive
+- Explore passages with full interactive features (new, horizontal, context, save, index)
 
 The terminal app remains unchanged and can still be run with:
 
 ```bash
-python -m src.main --library ./Library-Sample
+python -m src.main --library "./Library SOP"
 ```
 
 ### Deploying the web demo
@@ -285,7 +285,7 @@ The hosted app will provide an HTTPS URL you can share. The web UI is intentiona
 
 ## Testing
 
-The app includes a sample library (`Library-Sample/`) with test documents in multiple formats. Use this for testing during development.
+The app includes a sample library (`Library SOP/`) with research documents in PDF and DOCX formats. Use this for testing during development.
 
 ### Quick Test
 
@@ -305,7 +305,7 @@ python -m src.main --reset-sessions
 **Important**: Your personal library contents are kept private:
 - The `Library/` directory is excluded from git (see `.gitignore`)
 - Your `config.yaml` file (which may contain personal paths) is also excluded
-- Only `Library-Sample/` (public domain test content) is included in the repository
+- Only `Library SOP/` (sample research archive) is included in the repository
 - Database files and logs in `data/` are excluded from version control
 
 When setting up your own library, create a `Library/` directory and add your documents there. This directory will never be committed to the repository.

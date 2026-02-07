@@ -9,7 +9,7 @@ This web app replicates all functionality from the terminal app:
 - Index next batch (i): Manually trigger indexing of pending files
 - Help (?): Show usage information
 
-Uses Library-Sample (NPC Manager blog posts) as the demo library.
+Uses Library SOP as the demo library.
 
 Run locally with:
     streamlit run web_app.py
@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 # ---------- Configuration ----------
 
 PROJECT_ROOT = Path(__file__).parent
-DEFAULT_LIBRARY_PATH = PROJECT_ROOT / "Library-Sample"
+DEFAULT_LIBRARY_PATH = PROJECT_ROOT / "Library SOP"
 DEFAULT_DB_PATH = PROJECT_ROOT / "data" / "passages.db"
 
 # Initialize logging
@@ -59,10 +59,25 @@ def get_config() -> Config:
     """Get a shared Config instance for the app."""
     if "config" not in st.session_state:
         st.session_state.config = Config()
-        # Override library path to Library-Sample
+        # Override library path to Library SOP
         st.session_state.config.set("library_path", str(DEFAULT_LIBRARY_PATH))
         st.session_state.config.set("library_path_absolute", False)
     return st.session_state.config
+
+
+def clear_all_database_data() -> dict:
+    """Clear all database data: passages, sessions, indexing status, saved passages.
+    
+    Returns:
+        Dictionary with counts of deleted records.
+    """
+    store = get_passage_store()
+    passage_count = store.delete_all_passages()
+    reset_results = store.reset_all(archive=True)
+    return {
+        'passages': passage_count,
+        **reset_results
+    }
 
 
 def get_similarity_engine() -> SimilarityEngine:
@@ -606,7 +621,7 @@ def display_help() -> None:
     so you can explore multiple passages at once.
 
     **Library:**
-    This demo uses the Library-Sample collection (NPC Manager blog posts).
+    This demo uses the Library SOP collection.
     """
     st.markdown(help_text)
 
@@ -750,6 +765,14 @@ def main() -> None:
     store = get_passage_store()
     config = get_config()
     library_path = config.library_path
+    
+    # Clear database when switching to Library SOP (one-time)
+    if "database_cleared_for_library_sop" not in st.session_state:
+        if str(library_path).endswith("Library SOP"):
+            with st.spinner("Clearing database for new library..."):
+                clear_results = clear_all_database_data()
+                st.session_state.database_cleared_for_library_sop = True
+                logger.info(f"Cleared database: {clear_results}")
 
     # Show header immediately (before any heavy operations)
     header_col1, header_col2 = st.columns([3, 1])

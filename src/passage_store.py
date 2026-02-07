@@ -540,6 +540,22 @@ class PassageStore:
         finally:
             session.close()
     
+    def delete_all_passages(self) -> int:
+        """Delete all passages from the database.
+        
+        Returns:
+            Number of passages deleted.
+        """
+        session = self.get_session()
+        try:
+            count = session.query(Passage).count()
+            session.query(Passage).delete()
+            session.commit()
+            logger.info(f"Deleted {count} passages from database")
+            return count
+        finally:
+            session.close()
+    
     def reset_all(self, archive: bool = True) -> dict:
         """Reset all data (sessions, indexing status, saved passages).
         
